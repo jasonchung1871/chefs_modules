@@ -3,7 +3,7 @@ import { EndpointArgument } from 'leaflet-geosearch/dist/providers/provider';
 
 export class BCGeocoderProvider extends OpenStreetMapProvider {
   endpoint = ({ query, type }: EndpointArgument): string => {
-    return this.getUrl(import.meta.env.VITE_CHEFS_GEO_ADDRESS_APIURL, {
+    return this.getUrl(window.FORMIO_CONFIG?.GEO_ADDRESS_API_URL, {
       addressString: query as string,
     });
   };

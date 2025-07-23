@@ -24,7 +24,7 @@ export default class Component extends (ParentComponent as any) {
         provider: 'custom',
         providerOptions: {
           queryProperty: 'addressString',
-          url: import.meta.env.VITE_CHEFS_GEO_ADDRESS_APIURL,
+          url: window.FORMIO_CONFIG?.GEO_ADDRESS_API_URL,
         },
 
         queryParameters: {
