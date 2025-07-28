@@ -2,8 +2,8 @@
 import { Components, Utils } from 'formiojs';
 const ParentComponent = (Components as any).components.file;
 import editForm from './Component.form';
-
 import { Constants } from '../Common/Constants';
+import { SimpleFileUploader } from './FileUploader';
 import uniqueName = Utils.uniqueName;
 
 const ID = 'simplefile';
@@ -88,190 +88,122 @@ export default class Component extends ParentComponent {
     if (!this.component.multiple) {
       files = Array.prototype.slice.call(files, 0, 1);
     }
-    if (this.component && files?.length) {
-      // files is not really an array and does not have a forEach method, so fake it.
-      Array.prototype.forEach.call(files, async (file) => {
-        const fileName = uniqueName(
-          file.name,
-          this.component.fileNameTemplate,
-          this.evalContext()
-        );
-        const fileUpload = {
-          originalName: file.name,
-          name: fileName,
-          size: file.size,
-          status: 'info',
-          message: this.t('Starting upload'),
-        };
-        const fileNameLower = file.name.toLowerCase();
-        const systemBlockedExtensions = [
-          '.exe',
-          '.bat',
-          '.scr',
-          '.com',
-          '.pif',
-          '.cmd',
-          '.jar',
-          '.app',
-          '.deb',
-          '.dmg',
-          '.msi',
-          '.run',
-          '.bin',
-          '.sh',
-          '.ps1',
-          '.vbs',
-          '.js',
-          '.html',
-          '.php',
-          '.py',
-          '.rb',
-        ];
-        if (
-          systemBlockedExtensions.some((ext) => fileNameLower.endsWith(ext))
-        ) {
-          fileUpload.status = 'error';
-          fileUpload.message = this.t(
-            'This file type is not supported for security reasons.'
-          );
-          this.statuses.push(fileUpload);
+    
+    if (!this.component || !files?.length) {
+      return;
+    }
+
+    // Create uploader instance
+    const uploader = new SimpleFileUploader({
+      url: this.interpolate(this.component.url),
+      fileKey: this.component.fileKey ?? 'file',
+      multiple: this.component.multiple,
+      onProgress: (file, progress) => {
+        const fileUpload = this.findFileStatus(file);
+        if (fileUpload) {
+          fileUpload.status = 'progress';
+          fileUpload.progress = progress;
+          delete fileUpload.message;
           this.redraw();
-          return; // Stop processing this file immediately
         }
-
-        // Check file pattern
-        const pattern = this.component.filePattern ?? undefined;
-
-        if (pattern && !this.validatePattern(file, pattern)) {
+      },
+      onError: (file, error) => {
+        const fileUpload = this.findFileStatus(file);
+        if (fileUpload) {
           fileUpload.status = 'error';
-          fileUpload.message = this.t(
-            'File type not allowed. Supported: {{ pattern }}',
-            {
-              pattern: this.component.filePattern,
-            }
-          );
+          fileUpload.message = this.t(error);
+          delete fileUpload.progress;
+          this.redraw();
         }
-
-        // Check file minimum size
-        if (
-          this.component.fileMinSize &&
-          !this.validateMinSize(file, this.component.fileMinSize)
-        ) {
-          fileUpload.status = 'error';
-          fileUpload.message = this.t(
-            'File is too small; it must be at least {{ size }}',
-            {
-              size: this.component.fileMinSize,
-            }
-          );
+      },
+      onSuccess: (file, fileInfo) => {
+        const fileUpload = this.findFileStatus(file);
+        if (fileUpload) {
+          const index = this.statuses.indexOf(fileUpload);
+          if (index !== -1) {
+            this.statuses.splice(index, 1);
+          }
         }
-
-        // Check file maximum size
-        if (
-          this.component.fileMaxSize &&
-          !this.validateMaxSize(file, this.component.fileMaxSize)
-        ) {
-          fileUpload.status = 'error';
-          fileUpload.message = this.t(
-            'File is too big; it must be at most {{ size }}',
-            {
-              size: this.component.fileMaxSize,
-            }
-          );
+        
+        if (!this.hasValue()) {
+          this.dataValue = [];
         }
+        this.dataValue.push(fileInfo);
+        this.redraw();
+        this.triggerChange();
+      }
+    });
 
-        // Get a unique name for this file to keep file collisions from occurring.
-        const dir = this.interpolate(this.component.dir ?? '');
-        const { fileService } = this;
-        if (!fileService) {
-          fileUpload.status = 'error';
-          fileUpload.message = this.t('File Service not provided.');
-        }
+    // Process each file with validation
+    Array.prototype.forEach.call(files, async (file) => {
+      const fileName = uniqueName(
+        file.name,
+        this.component.fileNameTemplate,
+        this.evalContext()
+      );
+      
+      const fileUpload = {
+        originalName: file.name,
+        name: fileName,
+        size: file.size,
+        status: 'info',
+        message: this.t('Starting upload'),
+      };
 
+      // Validation logic (keeping your existing validation)
+      const validationError = this.validateFile(file);
+      if (validationError) {
+        fileUpload.status = 'error';
+        fileUpload.message = this.t(validationError);
         this.statuses.push(fileUpload);
         this.redraw();
+        return;
+      }
 
-        if (fileUpload.status !== 'error') {
-          if (this.component.privateDownload) {
-            file.private = true;
-          }
-          const { options = {} } = this.component;
-          const url = this.interpolate(this.component.url);
+      this.statuses.push(fileUpload);
+      this.redraw();
 
-          const fileKey = this.component.fileKey ?? 'file';
+      try {
+        await uploader.uploadFiles([file]);
+      } catch (error) {
+        // Error handling is done in the onError callback
+      }
+    });
+  }
 
-          const blob = new Blob([file], { type: file.type });
-          const fileFromBlob = new File([blob], file.name, {
-            type: file.type,
-            lastModified: file.lastModified,
-          });
-          const formData = new FormData();
-          const data = {
-            [fileKey]: fileFromBlob,
-            fileName,
-            dir,
-          };
-          for (const key in data) {
-            formData.append(key, data[key]);
-          }
-          options
-            .uploadFile(formData, {
-              onUploadProgress: (evt) => {
-                fileUpload.status = 'progress';
-                const p = (100.0 * evt.loaded) / evt.total;
-                // @ts-ignore
-                fileUpload.progress = p;
-                delete fileUpload.message;
-                this.redraw();
-              },
-              headers: {
-                'Content-Type': 'multipart/form-data',
-              },
-            })
-            .then((response) => {
-              response.data = response.data ?? {};
-              const index = this.statuses.indexOf(fileUpload);
-              if (index !== -1) {
-                this.statuses.splice(index, 1);
-              }
-              let fileInfo = {
-                storage: 'chefs',
-                name: response.data.originalname,
-                originalName: '',
-                url: `${url}/${response.data.id}`,
-                size: response.data.size,
-                type: response.data.mimetype,
-                data: { id: response.data.id },
-              };
-              fileInfo.originalName = file.name;
-              if (!this.hasValue()) {
-                this.dataValue = [];
-              }
-              this.dataValue.push(fileInfo);
-              this.redraw();
-              this.triggerChange();
-            })
-            .catch((response) => {
-              fileUpload.status = 'error';
-              // we do not get API Problem objects, only http error
-              // not much information to provide our users.
-              let message = 'An unexpected error occured during file upload.';
-              if (response.status === 409 || response.detail.includes('409')) {
-                message = 'File did not pass the virus scanner.';
-              } else if (
-                response.status === 400 ||
-                response.detail.includes('400')
-              ) {
-                message = 'File could not be uploaded.';
-              }
-              fileUpload.message = this.t(message);
-              // @ts-ignore
-              delete fileUpload.progress;
-              this.redraw();
-            });
-        }
-      });
+  private findFileStatus(file: File) {
+    return this.statuses.find(status => status.originalName === file.name);
+  }
+
+  private validateFile(file: File): string | null {
+    const fileNameLower = file.name.toLowerCase();
+    const systemBlockedExtensions = [
+      '.exe', '.bat', '.scr', '.com', '.pif', '.cmd', '.jar', '.app',
+      '.deb', '.dmg', '.msi', '.run', '.bin', '.sh', '.ps1', '.vbs',
+      '.js', '.html', '.php', '.py', '.rb',
+    ];
+
+    if (systemBlockedExtensions.some((ext) => fileNameLower.endsWith(ext))) {
+      return 'This file type is not supported for security reasons.';
     }
+
+    // Check file pattern
+    const pattern = this.component.filePattern ?? undefined;
+    if (pattern && !this.validatePattern(file, pattern)) {
+      return `File type not allowed. Supported: ${this.component.filePattern}`;
+    }
+
+    // Check file minimum size
+    if (this.component.fileMinSize && !this.validateMinSize(file, this.component.fileMinSize)) {
+      return `File is too small; it must be at least ${this.component.fileMinSize}`;
+    }
+
+    // Check file maximum size
+    if (this.component.fileMaxSize && !this.validateMaxSize(file, this.component.fileMaxSize)) {
+      return `File is too big; it must be at most ${this.component.fileMaxSize}`;
+    }
+
+    return null;
   }
 
   getFile(fileInfo) {
