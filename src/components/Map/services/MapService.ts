@@ -319,18 +319,10 @@ class MapService {
     defaultZoom?: number,
     viewMode?: boolean
   ) {
-    // Apply CSS fixes before creating map
-    this.addLayerControlStyle();
-    
-    const map = L.map(mapContainer, { zoomAnimation: viewMode || false }).setView(
+    return L.map(mapContainer, { zoomAnimation: viewMode || false }).setView(
       center,
       defaultZoom || DEFAULT_MAP_ZOOM
     );
-    
-    // Force invalidate size after creation
-    setTimeout(() => map.invalidateSize(), 0);
-    
-    return map;
   }
 
   private setupBaseLayers(
@@ -598,31 +590,6 @@ class MapService {
       }
       .leaflet-control-geosearch {
         z-index: 998 !important;
-      }
-      .leaflet-container {
-        position: relative !important;
-        overflow: hidden !important;
-      }
-      .leaflet-tile-pane {
-        position: absolute !important;
-        left: 0 !important;
-        top: 0 !important;
-      }
-      .leaflet-tile {
-        position: absolute !important;
-        border: none !important;
-        outline: none !important;
-        max-width: none !important;
-        max-height: none !important;
-        user-select: none !important;
-      }
-      .leaflet-tile-container {
-        position: absolute !important;
-        left: 0 !important;
-        top: 0 !important;
-        width: 100% !important;
-        height: 100% !important;
-        overflow: hidden !important;
       }
     `;
 

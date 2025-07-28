@@ -59,7 +59,7 @@ export default class Component extends (FieldComponent as any) {
 
   render() {
     return super.render(
-      `<div id="map-${this.componentID}" style="height:${DEFAULT_CONTAINER_HEIGHT}; width:100%; position:relative; z-index:1; overflow:hidden;"></div>`
+      `<div id="map-${this.componentID}" style="height:${DEFAULT_CONTAINER_HEIGHT}; z-index:1;"></div>`
     );
   }
 
@@ -110,14 +110,6 @@ export default class Component extends (FieldComponent as any) {
     this.mapContainer = document.getElementById(`map-${this.componentID}`);
 
     if (!this.mapContainer) {
-      if (this.mapInitializationAttempts++ < this.maxInitializationAttempts) {
-        setTimeout(() => this.loadMap(), 200);
-      }
-      return;
-    }
-
-    // Ensure container has proper dimensions before initialization
-    if (this.mapContainer.offsetWidth === 0 || this.mapContainer.offsetHeight === 0) {
       if (this.mapInitializationAttempts++ < this.maxInitializationAttempts) {
         setTimeout(() => this.loadMap(), 200);
       }
@@ -193,19 +185,6 @@ export default class Component extends (FieldComponent as any) {
 
     // Now explicitly call async initialize outside constructor
     await this.mapService.init();
-
-    // Multiple invalidation attempts to ensure proper rendering
-    setTimeout(() => {
-      if (this.mapService?.map) {
-        this.mapService.map.invalidateSize();
-      }
-    }, 100);
-
-    setTimeout(() => {
-      if (this.mapService?.map) {
-        this.mapService.map.invalidateSize();
-      }
-    }, 300);
 
     if (effectiveDefaultValue.features.length > 0) {
       setTimeout(() => {
