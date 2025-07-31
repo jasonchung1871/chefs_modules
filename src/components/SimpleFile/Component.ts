@@ -67,9 +67,12 @@ export default class Component extends ParentComponent {
         this.component.fileMinSize = uploads.fileMinSize;
         this.component.fileMaxSize = uploads.fileMaxSize;
         // set the default url to be for uploads.
-        this.component.url = cfg.overrideDomain ? cfg.overrideDomain : `/${remSlash(cfg.basePath)}/${remSlash(
+        this.component.url = `/${remSlash(cfg.basePath)}/${remSlash(
           cfg.apiPath
         )}/${remSlash(uploads.path)}`;
+        if (opts?.config?.baseUrl) {
+          this.component.url = `${opts.config.baseUrl}${this.component.url}`;
+        }
         // no idea what to do with this yet...
         this._enabled = uploads.enabled;
       }
