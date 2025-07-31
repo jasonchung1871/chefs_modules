@@ -59,20 +59,21 @@ export default class Component extends ParentComponent {
       this.component.options = { ...this.component.options, ...opts };
       // the config.uploads object will say what size our server can handle and what path to use.
       if (opts?.config?.uploads) {
-        const remSlash = (s) => s.replace(/^(\s*\/?\s*)$|^(\s*\/?\s*)$/gm, '');
+        const remSlash = (s) => (s || '').replace(/^\/+|\/+$/g, '');
 
         const cfg = opts.config;
         const uploads = cfg.uploads;
 
         this.component.fileMinSize = uploads.fileMinSize;
         this.component.fileMaxSize = uploads.fileMaxSize;
-        // set the default url to be for uploads.
-        this.component.url = `/${remSlash(cfg.basePath)}/${remSlash(
-          cfg.apiPath
-        )}/${remSlash(uploads.path)}`;
-        if (opts?.config?.baseUrl) {
-          this.component.url = `${opts.config.baseUrl}${this.component.url}`;
-        }
+        let urlParts = [
+          cfg.baseUrl ? cfg.baseUrl.replace(/\/+$/, '') : '',
+          remSlash(cfg.basePath),
+          remSlash(cfg.apiPath),
+          remSlash(uploads.path),
+        ].filter(Boolean);
+        this.component.url = urlParts.join('/');
+
         // no idea what to do with this yet...
         this._enabled = uploads.enabled;
       }
