@@ -60,6 +60,10 @@ export default class Component extends ParentComponent {
       // the config.uploads object will say what size our server can handle and what path to use.
       if (opts?.config?.uploads) {
         const remSlash = (s) => (s || '').replace(/^\/+|\/+$/g, '');
+        const appendQueryParam = (url, key, value) => {
+          const separator = url.includes('?') ? '&' : '?';
+          return `${url}${separator}${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
+        };
 
         const cfg = opts.config;
         const uploads = cfg.uploads;
@@ -72,7 +76,14 @@ export default class Component extends ParentComponent {
           remSlash(cfg.apiPath),
           remSlash(uploads.path),
         ].filter(Boolean);
-        this.component.url = urlParts.join('/');
+        let url = urlParts.join('/');
+
+        const formId = opts?.formId || cfg.formId || this.options?.formId;
+        if (formId) {
+          url = appendQueryParam(url, 'formId', formId);
+        }
+
+        this.component.url = url;
 
         // no idea what to do with this yet...
         this._enabled = uploads.enabled;
